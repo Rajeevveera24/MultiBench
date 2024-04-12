@@ -36,8 +36,8 @@ class DynMMNet(nn.Module):
         # self.branch1 = nn.Sequential(self.text_encoder, self.text_head)
 
         # branch2: image network, discard this branch due to poor performance
-        self.image_encoder = torch.load('./log/imdb/encoder_image.pt') if pretrain else MLP(4096, 1024, 512)
-        self.image_head = torch.load('./log/imdb/head_image.pt') if pretrain else MLP(512, 512, 23)
+        # self.image_encoder = torch.load('./log/imdb/encoder_image.pt') if pretrain else MLP(4096, 1024, 512)
+        # self.image_head = torch.load('./log/imdb/head_image.pt') if pretrain else MLP(512, 512, 23)
         # self.branch2 = nn.Sequential(self.image_encoder, self.image_head)
 
         # branch3: text+image late fusion
