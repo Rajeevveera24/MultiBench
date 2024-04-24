@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from unimodals.common_models import Identity, Linear, MaxOut_MLP
-from datasets.imdb.get_data import get_dataloader
+from datasets_1.imdb.get_data import get_dataloader
 from fusions.common_fusions import Concat, LowRankTensorFusion, MultiplicativeInteractions2Modal
 from training_structures.Supervised_Learning import train, test
 
@@ -19,11 +19,19 @@ if __name__ == '__main__':
     argparser.add_argument("--fuse", type=int, default=0, help="fusion model")
     argparser.add_argument("--eval-only", action='store_true', help='no training')
     argparser.add_argument("--measure", action='store_true', help='no training')
+    argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
     args = argparser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+    
+    run_name = args.run_name
+    if not os.path.isdir('./log/imdb/' + run_name):
+        os.makedirs('./log/imdb/' + run_name)
+    
     fusion_dict = {0: 'ef', 1: 'lf', 2: 'lrtf', 3: 'mim'}
-    filename = "./log/imdb/best_" + fusion_dict[args.fuse] + ".pt"
+    save_path = './log/imdb/' + run_name + '/'
+    filename = save_path + "best_" + fusion_dict[args.fuse] + ".pt"
+    
     traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
 
     log1, log2 = [], []

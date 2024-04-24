@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import sys
 import os
 sys.path.append(os.getcwd())
-from datasets.imdb.get_data import get_dataloader
+from datasets_1.imdb.get_data import get_dataloader
 from unimodals.common_models import MLP, Linear, MaxOut_MLP
 from fusions.common_fusions import Concat
 from training_structures.Supervised_Learning import train, test, MMDL
@@ -27,12 +27,18 @@ def DiffSoftmax(logits, tau=1.0, hard=False, dim=-1):
 
 
 class DynMMNet(nn.Module):
-    def __init__(self, branch_num=2, pretrain=True, freeze=True):
+    def __init__(self, branch_num=2, pretrain=True, freeze=True, file_path='./log/imdb/default_run/'):
         super(DynMMNet, self).__init__()
         self.branch_num = branch_num
+        
+        self.branch1_encoder_path = file_path + 'encoder_text.pt'
+        self.branch1_head_path = file_path + 'head_text.pt'
+        self.branch3_model_path = file_path + 'best_lf.pt'
+        
+        
         # branch 1: text network
-        self.text_encoder = torch.load('./log/imdb/encoder_text.pt') if pretrain else MLP(300, 512, 512)
-        self.text_head = torch.load('./log/imdb/head_text.pt') if pretrain else MLP(512, 512, 23)
+        self.text_encoder = torch.load(self.branch1_encoder_path) if pretrain else MLP(300, 512, 512)
+        self.text_head = torch.load(self.branch1_head_path) if pretrain else MLP(512, 512, 23)
         # self.branch1 = nn.Sequential(self.text_encoder, self.text_head)
 
         # branch2: image network, discard this branch due to poor performance
@@ -41,8 +47,9 @@ class DynMMNet(nn.Module):
         # self.branch2 = nn.Sequential(self.image_encoder, self.image_head)
 
         # branch3: text+image late fusion
+        
         if pretrain:
-            self.branch3 = torch.load('./log/imdb/best_lf.pt')
+            self.branch3 = torch.load(self.branch3_model_path)
         else:
             encoders = [MaxOut_MLP(512, 512, 300, linear_layer=False), MaxOut_MLP(512, 1024, 4096, 512, False)]
             head = Linear(1024, 23)
@@ -52,8 +59,8 @@ class DynMMNet(nn.Module):
         if freeze:
             self.freeze_branch(self.text_encoder)
             self.freeze_branch(self.text_head)
-            self.freeze_branch(self.image_encoder)
-            self.freeze_branch(self.image_head)
+            # self.freeze_branch(self.image_encoder)
+            # self.freeze_branch(self.image_head)
             self.freeze_branch(self.branch3)
 
         # gating network
@@ -128,16 +135,24 @@ if __name__ == '__main__':
     argparser.add_argument("--hard", action='store_true', help='hard labels')
     argparser.add_argument("--no-pretrain", action='store_true', help='train from scratch')
     argparser.add_argument("--infer-mode", type=int, default=0, help="infer mode")
+    argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
+
     args = argparser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+    
+    run_name = args.run_name
+    file_path = './log/' + 'imdb' + '/' + run_name + '/'
+    # print(file_path)
+    # exit()/
+    
     traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
 
     log1, log2 = np.zeros((args.n_runs, 1)), np.zeros((args.n_runs, 3))
     for n in range(args.n_runs):
         # Init Model
-        model = DynMMNet(pretrain=1-args.no_pretrain, freeze=args.freeze)
-        filename = os.path.join('./log', args.data, 'DynMMNet_freeze' + str(args.freeze) + '_reg_' + str(args.reg) + '.pt')
+        model = DynMMNet(pretrain=1-args.no_pretrain, freeze=args.freeze, file_path=file_path)
+        filename = os.path.join(file_path[:-1], 'DynMMNet_freeze_' + str(args.freeze) + '_reg_' + str(args.reg) + '.pt')
 
         if not args.eval_only:
             model.hard_gate = args.hard

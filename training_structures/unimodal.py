@@ -188,7 +188,7 @@ def single_test(encoder, head, test_dataloader, auprc=False, modalnum=0, task='c
         elif task == "multilabel":
             print(" f1_micro: "+str(f1_score(true, pred, average="micro")) +
                   " f1_macro: "+str(f1_score(true, pred, average="macro")))
-            return {'F1 score (micro)': f1_score(true, pred, average="micro"), 'F1 score (macro)': f1_score(true, pred, average="macro")}
+            return {'f1_micro': f1_score(true, pred, average="micro"), 'f1_macro': f1_score(true, pred, average="macro")}
         elif task == "posneg-classification":
             trueposneg = true
             accs = eval_affect(trueposneg, pred)
@@ -216,10 +216,10 @@ def test(encoder, head, test_dataloaders_all, dataset='default', method_name='My
     """
     if no_robust:
         def _testprocess():
-            single_test(encoder, head, test_dataloaders_all,
+            return single_test(encoder, head, test_dataloaders_all,
                         auprc, modalnum, task, criterion)
-        all_in_one_test(_testprocess, [encoder, head])
-        return
+        return all_in_one_test(_testprocess, [encoder, head])
+        
 
     def _testprocess():
         single_test(encoder, head, test_dataloaders_all[list(

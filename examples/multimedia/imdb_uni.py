@@ -1,14 +1,14 @@
 import sys
 import os
+
 sys.path.append(os.getcwd())
 
 import argparse
 import numpy as np
 import torch
-import torch.nn as nn
 from torch.nn import functional as F
 from unimodals.common_models import MLP, MaxOut_MLP
-from datasets.imdb.get_data import get_dataloader
+from datasets_1.imdb_get_data import get_dataloader
 from training_structures.unimodal import train, test
 
 
@@ -19,12 +19,20 @@ if __name__ == '__main__':
     argparser.add_argument("--mod", type=int, default=0, help="0: text; 1: image")
     argparser.add_argument("--eval-only", action='store_true', help='no training')
     argparser.add_argument("--measure", action='store_true', help='no training')
+    argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
     args = argparser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
+    
+    run_name = args.run_name
+    if not os.path.isdir('./log/imdb/' + run_name):
+        os.makedirs('./log/imdb/' + run_name)
+        
+    save_path = './log/imdb/' + run_name + '/'
     modality = 'image' if args.mod == 1 else 'text'
-    encoderfile = "./log/imdb/encoder_" + modality + ".pt"
-    headfile = "./log/imdb/head_" + modality + ".pt"
+    encoderfile = save_path + "encoder_" + modality + ".pt"
+    headfile = save_path + "head_" + modality + ".pt"
+    
     traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
 
     log1, log2 = [], []
@@ -46,8 +54,7 @@ if __name__ == '__main__':
         encoder = torch.load(encoderfile).cuda()
         head = torch.load(headfile).cuda()
 
-        tmp = test(encoder, head, testdata, "imdb", modality, task="multilabel", modalnum=args.mod, no_robust=True,
-             measure_time=args.measure)
+        tmp = test(encoder, head, testdata, "imdb", modality, task="multilabel", modalnum=args.mod, no_robust=True)
         log1.append(tmp['f1_micro'])
         log2.append(tmp['f1_macro'])
 

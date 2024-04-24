@@ -22,7 +22,8 @@ def all_in_one_train(trainprocess, trainmodules):
 
 def all_in_one_test(testprocess, testmodules):
     teststart = time.time()
-    testprocess()
+    ret = testprocess()
     testend = time.time()
     print("Inference Time: "+str(testend-teststart))
     print("Inference Params: "+str(getallparams(testmodules)))
+    return ret
