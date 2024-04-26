@@ -7,7 +7,7 @@ import argparse
 import numpy as np
 import torch
 from torch.nn import functional as F
-from unimodals.common_models import MLP, MaxOut_MLP
+from unimodals.common_models import MLP, MaxOut_MLP, CNN_2
 from datasets_1.imdb_get_data import get_dataloader
 from training_structures.unimodal import train, test
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     argparser = argparse.ArgumentParser("imdb",formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     argparser.add_argument("--gpu", type=int, default=0, help="which gpu to use")
     argparser.add_argument("--n-runs", type=int, default=1, help="number of runs")
-    argparser.add_argument("--mod", type=int, default=0, help="0: text; 1: image")
+    argparser.add_argument("--mod", type=int, default=0, help="0: text; 1: image, 2:cnn")
     argparser.add_argument("--eval-only", action='store_true', help='no training')
     argparser.add_argument("--measure", action='store_true', help='no training')
     argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
@@ -33,21 +33,24 @@ if __name__ == '__main__':
     encoderfile = save_path + "encoder_" + modality + ".pt"
     headfile = save_path + "head_" + modality + ".pt"
     
-    traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
+    traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True if modality == 'image' else False, batch_size=128, no_robust=True)
 
     log1, log2 = [], []
     for n in range(args.n_runs):
         if args.mod == 0:
             encoders = MLP(300, 512, 512).cuda()
             head = MLP(512, 512, 23).cuda()
-        else:
+        elif args.mod == 1:
             encoders = MLP(4096, 1024, 512).cuda()
             head = MLP(512, 512, 23).cuda()
+        else:
+            encoders = CNN_2(3, 256).cuda()
+            head = MLP(256, 512, 23).cuda()
 
         if not args.eval_only:
             train(encoders, head, traindata, validdata, 1000, early_stop=True, task="multilabel",
                   save_encoder=encoderfile, save_head=headfile,
-                  modalnum=args.mod, optimtype=torch.optim.AdamW, lr=1e-4, weight_decay=0.01,
+                  modalnum=1 if args.mod == 2 else args.mod, optimtype=torch.optim.AdamW, lr=1e-4, weight_decay=0.01,
                   criterion=torch.nn.BCEWithLogitsLoss())
 
         print(f"Testing model {encoderfile} and {headfile}:")

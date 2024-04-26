@@ -71,7 +71,7 @@ class DynMMNet(nn.Module):
         self.weight_list = torch.Tensor()
         self.store_weight = False
         self.infer_mode = 0
-        self.flop = torch.Tensor([1.25261, 4.99, 10.86908])
+        self.flop = torch.Tensor([1.25261, 7.56771, 10.86908])
 
     def freeze_branch(self, m):
         for param in m.parameters():
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # exit()/
     
     traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
-
+    
     log1, log2 = np.zeros((args.n_runs, 1)), np.zeros((args.n_runs, 3))
     for n in range(args.n_runs):
         # Init Model

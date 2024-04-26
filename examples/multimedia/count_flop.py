@@ -34,10 +34,14 @@ if __name__ == '__main__':
     argparser.add_argument("--weight-enable", action='store_true', help='whether to include gating networks')
     argparser.add_argument("--path", type=int, default=0, help="path: 0/1")
     argparser.add_argument("--model-type", type=int, default=-1, help="2-4: fusion, -1: dynamic")
+    argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
+    
     args = argparser.parse_args()
+    filepath = './log/imdb/' + args.run_name + '/'
 
     model = load_model(args.model_type)
     x = [torch.randn(1, 300).cuda(), torch.randn(1, 4096).cuda()]
+
     if args.model_type < 0:
         macs, param = profile(model, inputs=(x, args.path, args.weight_enable), )
     elif args.model_type < 2:
