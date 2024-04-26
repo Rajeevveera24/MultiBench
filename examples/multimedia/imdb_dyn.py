@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import sys
 import os
 sys.path.append(os.getcwd())
-from datasets_1.imdb.get_data import get_dataloader
+from datasets_1.imdb.get_data import get_dataloader # type: ignore
 from unimodals.common_models import MLP, Linear, MaxOut_MLP
 from fusions.common_fusions import Concat
 from training_structures.Supervised_Learning import train, test, MMDL
@@ -27,12 +27,14 @@ def DiffSoftmax(logits, tau=1.0, hard=False, dim=-1):
 
 
 class DynMMNet(nn.Module):
-    def __init__(self, branch_num=2, pretrain=True, freeze=True, file_path='./log/imdb/default_run/'):
+    def __init__(self, branch_num=3, pretrain=True, freeze=True, file_path='./log/imdb/default_run/'):
         super(DynMMNet, self).__init__()
         self.branch_num = branch_num
         
         self.branch1_encoder_path = file_path + 'encoder_text.pt'
         self.branch1_head_path = file_path + 'head_text.pt'
+        self.branch2_encoder_path = file_path + 'encoder_image.pt'
+        self.branch2_head_path = file_path + 'head_image.pt'
         self.branch3_model_path = file_path + 'best_lf.pt'
         
         
@@ -42,12 +44,11 @@ class DynMMNet(nn.Module):
         # self.branch1 = nn.Sequential(self.text_encoder, self.text_head)
 
         # branch2: image network, discard this branch due to poor performance
-        # self.image_encoder = torch.load('./log/imdb/encoder_image.pt') if pretrain else MLP(4096, 1024, 512)
-        # self.image_head = torch.load('./log/imdb/head_image.pt') if pretrain else MLP(512, 512, 23)
+        self.image_encoder = torch.load(self.branch2_encoder_path) if pretrain else MLP(4096, 1024, 512)
+        self.image_head = torch.load(self.branch2_head_path) if pretrain else MLP(512, 512, 23)
         # self.branch2 = nn.Sequential(self.image_encoder, self.image_head)
 
-        # branch3: text+image late fusion
-        
+        # branch3: text+image late fusion 
         if pretrain:
             self.branch3 = torch.load(self.branch3_model_path)
         else:
@@ -59,8 +60,8 @@ class DynMMNet(nn.Module):
         if freeze:
             self.freeze_branch(self.text_encoder)
             self.freeze_branch(self.text_head)
-            # self.freeze_branch(self.image_encoder)
-            # self.freeze_branch(self.image_head)
+            self.freeze_branch(self.image_encoder)
+            self.freeze_branch(self.image_head)
             self.freeze_branch(self.branch3)
 
         # gating network
@@ -70,7 +71,7 @@ class DynMMNet(nn.Module):
         self.weight_list = torch.Tensor()
         self.store_weight = False
         self.infer_mode = 0
-        self.flop = torch.Tensor([1.25261, 10.86908])
+        self.flop = torch.Tensor([1.25261, 4.99, 10.86908])
 
     def freeze_branch(self, m):
         for param in m.parameters():
@@ -81,9 +82,9 @@ class DynMMNet(nn.Module):
         self.store_weight = True
 
     def weight_stat(self):
-        print(self.weight_list)
+        # print(self.weight_list)
         tmp = torch.mean(self.weight_list, dim=0)
-        print(f'mean branch weight {tmp[0].item():.4f}, {tmp[1].item():.4f}')
+        print(f'mean branch weight {tmp[0].item():.4f}, {tmp[1].item():.4f}, {tmp[2].item():.4f}')
         self.store_weight = False
         return tmp[1].item()
 
@@ -100,11 +101,11 @@ class DynMMNet(nn.Module):
         if self.store_weight:
             self.weight_list = torch.cat((self.weight_list, weight.cpu()))
 
-        pred_list = [self.text_head(self.text_encoder(inputs[0])), self.branch3(inputs)]
+        pred_list = [self.text_head(self.text_encoder(inputs[0])), self.image_head(self.image_encoder(inputs[1])), self.branch3(inputs)]
         if self.infer_mode > 0:
             return pred_list[self.infer_mode - 1], 0
 
-        output = weight[:, 0:1] * pred_list[0] + weight[:, 1:2] * pred_list[1]
+        output = weight[:, 0:1] * pred_list[0] + weight[:, 1:2] * pred_list[1] + weight[:, 2:3] * pred_list[2]
         return output, weight[:, 1].mean()
 
     def forward_separate_branch(self, inputs, path, weight_enable):  # see separate branch performance
@@ -167,13 +168,12 @@ if __name__ == '__main__':
 
         # print('-' * 30 + 'Val data' + '-' * 30)
         model.infer_mode = args.infer_mode
-        # tmp = test(model=model, test_dataloaders_all=validdata, dataset=args.data, is_packed=False,
-        #            criterion=torch.nn.BCEWithLogitsLoss(), task="multilabel", no_robust=True, additional_loss=True)
 
         print('-' * 30 + 'Test data' + '-' * 30)
         model.reset_weight()
         tmp = test(model=model, test_dataloaders_all=testdata, dataset=args.data, is_packed=False,
                    criterion=torch.nn.BCEWithLogitsLoss(), task="multilabel", no_robust=True, additional_loss=True)
+        
         log1[n] = model.weight_stat()
         log2[n] = tmp['f1_micro'], tmp['f1_macro'], model.cal_flop()
 

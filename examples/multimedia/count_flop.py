@@ -11,17 +11,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.getcwd())))
 from imdb_dyn import DynMMNet
 
 
-def load_model(model_type):
+def load_model(model_type, file_path='./log/imdb/default_run/'):
     um_dict = {0: 'text', 1: 'image'}
     fusion_dict = {2: 'ef', 3: 'lf', 4: 'lrtf', 5: 'mim'}
     if model_type in fusion_dict:
-        filename = "./log/imdb/best_" + fusion_dict[model_type] + ".pt"
+        filename = file_path + 'best_' + fusion_dict[model_type] + '.pt'
         model = torch.load(filename)
         print(f"Loading model {filename}")
 
     elif model_type in um_dict:
-        encoder = torch.load('./log/imdb/encoder_' + um_dict[model_type] + '.pt')
-        head = torch.load('./log/imdb/head_' + um_dict[model_type] + '.pt')
+        encoder = torch.load(file_path + 'encoder_' + um_dict[model_type] + '.pt')
+        head = torch.load(file_path + 'head_' + um_dict[model_type] + '.pt')
         model = nn.Sequential(encoder, head)
     else:
         model = DynMMNet(pretrain=True, freeze=False)
