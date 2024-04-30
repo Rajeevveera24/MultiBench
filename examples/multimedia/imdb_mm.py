@@ -16,7 +16,7 @@ if __name__ == '__main__':
     argparser = argparse.ArgumentParser("imdb", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     argparser.add_argument("--gpu", type=int, default=0, help="which gpu to use")
     argparser.add_argument("--n-runs", type=int, default=1, help="number of runs")
-    argparser.add_argument("--fuse", type=int, default=0, help="fusion model")
+    argparser.add_argument("--fuse", type=int, default=1, help="fusion model")
     argparser.add_argument("--eval-only", action='store_true', help='no training')
     argparser.add_argument("--measure", action='store_true', help='no training')
     argparser.add_argument("--run-name", type=str, default='default_run', help='name of this run')
