@@ -18,7 +18,7 @@ sys.path.append('/home/pliang/multibench/MultiBench/datasets/imdb')
 class IMDBDataset(Dataset):
     """Implements a torch Dataset class for the imdb dataset."""
     
-    def __init__(self, file: h5py.File, start_ind: int, end_ind: int, vggfeature: bool = False) -> None:
+    def __init__(self, file: h5py.File, start_ind: int, end_ind: int, vggfeature: bool = False, img_feature=False) -> None:
         """Initialize IMDBDataset object.
 
         Args:
@@ -31,6 +31,7 @@ class IMDBDataset(Dataset):
         self.start_ind = start_ind
         self.size = end_ind-start_ind
         self.vggfeature = vggfeature
+        self.img_feature = img_feature
 
     def __getitem__(self, ind):
         """Get item from dataset.
@@ -47,6 +48,10 @@ class IMDBDataset(Dataset):
         image = self.dataset["images"][ind+self.start_ind] if not self.vggfeature else \
             self.dataset["vgg_features"][ind+self.start_ind]
         label = self.dataset["genres"][ind+self.start_ind]
+
+        if self.img_feature:
+            full_image = self.dataset["images"][ind+self.start_ind]
+            return text, image, full_image, label
 
         return text, image, label
 
@@ -108,7 +113,7 @@ def _process_data(filename, path):
     return data
 
 
-def get_dataloader(path: str, test_path: str, num_workers: int = 8, train_shuffle: bool = True, batch_size: int = 40, vgg: bool = False, skip_process=False, no_robust=False) -> Tuple[Dict]:
+def get_dataloader(path: str, test_path: str, num_workers: int = 8, train_shuffle: bool = True, batch_size: int = 40, vgg: bool = False, img_feature=False, skip_process=False, no_robust=False) -> Tuple[Dict]:
     """Get dataloaders for IMDB dataset.
 
     Args:
@@ -124,11 +129,14 @@ def get_dataloader(path: str, test_path: str, num_workers: int = 8, train_shuffl
     Returns:
         Tuple[Dict]: Tuple of Training dataloader, Validation dataloader, Test Dataloader
     """
-    train_dataloader = DataLoader(IMDBDataset(path, 0, 15552, vgg),
+
+    print(img_feature)
+
+    train_dataloader = DataLoader(IMDBDataset(path, 0, 15552, vgg, img_feature),
                                   shuffle=train_shuffle, num_workers=num_workers, batch_size=batch_size)
-    val_dataloader = DataLoader(IMDBDataset(path, 15552, 18160, vgg),
+    val_dataloader = DataLoader(IMDBDataset(path, 15552, 18160, vgg, img_feature),
                                 shuffle=False, num_workers=num_workers, batch_size=batch_size)
     if no_robust:
-        test_dataloader = DataLoader(IMDBDataset(path, 18160, 25959, vgg),
+        test_dataloader = DataLoader(IMDBDataset(path, 18160, 25959, vgg, img_feature),
                                      shuffle=False, num_workers=num_workers, batch_size=batch_size)
         return train_dataloader, val_dataloader, test_dataloader

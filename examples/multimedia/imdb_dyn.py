@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import sys
 import os
 sys.path.append(os.getcwd())
-from datasets_1.imdb.get_data import get_dataloader # type: ignore
+from datasets_1.imdb.get_data import get_dataloader
 from unimodals.common_models import MLP, Linear, MaxOut_MLP
 from fusions.common_fusions import Concat
 from training_structures.Supervised_Learning import train, test, MMDL
@@ -33,22 +33,20 @@ class DynMMNet(nn.Module):
         
         self.branch1_encoder_path = file_path + 'encoder_text.pt'
         self.branch1_head_path = file_path + 'head_text.pt'
-        self.branch2_encoder_path = file_path + 'encoder_image.pt'
-        self.branch2_head_path = file_path + 'head_image.pt'
         self.branch3_model_path = file_path + 'best_lf.pt'
         
         
         # branch 1: text network
         self.text_encoder = torch.load(self.branch1_encoder_path) if pretrain else MLP(300, 512, 512)
         self.text_head = torch.load(self.branch1_head_path) if pretrain else MLP(512, 512, 23)
-        # self.branch1 = nn.Sequential(self.text_encoder, self.text_head)
+        self.branch1 = nn.Sequential(self.text_encoder, self.text_head)
 
         # branch2: image network, discard this branch due to poor performance
-        self.image_encoder = torch.load(self.branch2_encoder_path) if pretrain else MLP(4096, 1024, 512)
-        self.image_head = torch.load(self.branch2_head_path) if pretrain else MLP(512, 512, 23)
-        # self.branch2 = nn.Sequential(self.image_encoder, self.image_head)
+        self.image_encoder = torch.load('./log/imdb/default_run/encoder_image.pt') if pretrain else MLP(4096, 1024, 512)
+        self.image_head = torch.load('./log/imdb/default_run/head_image.pt') if pretrain else MLP(512, 512, 23)
+        self.branch2 = nn.Sequential(self.image_encoder, self.image_head)
 
-        # branch3: text+image late fusion 
+        # branch3: text+image late fusion
         if pretrain:
             self.branch3 = torch.load(self.branch3_model_path)
         else:
@@ -71,7 +69,7 @@ class DynMMNet(nn.Module):
         self.weight_list = torch.Tensor()
         self.store_weight = False
         self.infer_mode = 0
-        self.flop = torch.Tensor([1.25261, 7.56771, 10.86908])
+        self.flop = torch.Tensor([0.6897, 48.6673, 10.32])
 
     def freeze_branch(self, m):
         for param in m.parameters():
@@ -82,9 +80,9 @@ class DynMMNet(nn.Module):
         self.store_weight = True
 
     def weight_stat(self):
-        # print(self.weight_list)
+        print(self.weight_list)
         tmp = torch.mean(self.weight_list, dim=0)
-        print(f'mean branch weight {tmp[0].item():.4f}, {tmp[1].item():.4f}, {tmp[2].item():.4f}')
+        print(f'mean branch weight {tmp[0].item():.4f}, {tmp[1].item():.4f}')
         self.store_weight = False
         return tmp[1].item()
 
@@ -95,13 +93,13 @@ class DynMMNet(nn.Module):
         return total_flop.item()
 
     def forward(self, inputs):
-        x = torch.cat(inputs, dim=1)
+        x = torch.cat(inputs[:-1], dim=1)
         weight = DiffSoftmax(self.gate(x), tau=self.temp, hard=self.hard_gate)
 
         if self.store_weight:
             self.weight_list = torch.cat((self.weight_list, weight.cpu()))
 
-        pred_list = [self.text_head(self.text_encoder(inputs[0])), self.image_head(self.image_encoder(inputs[1])), self.branch3(inputs)]
+        pred_list = [self.text_head(self.text_encoder(inputs[0])), self.image_head(self.image_encoder(inputs[2])), self.branch3(inputs[:-1])]
         if self.infer_mode > 0:
             return pred_list[self.infer_mode - 1], 0
 
@@ -147,8 +145,8 @@ if __name__ == '__main__':
     # print(file_path)
     # exit()/
     
-    traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, batch_size=128, no_robust=True)
-    
+    traindata, validdata, testdata = get_dataloader("./data/multimodal_imdb.hdf5", "./data/mmimdb", vgg=True, img_feature=True, batch_size=128, no_robust=True)
+
     log1, log2 = np.zeros((args.n_runs, 1)), np.zeros((args.n_runs, 3))
     for n in range(args.n_runs):
         # Init Model
@@ -168,12 +166,13 @@ if __name__ == '__main__':
 
         # print('-' * 30 + 'Val data' + '-' * 30)
         model.infer_mode = args.infer_mode
+        # tmp = test(model=model, test_dataloaders_all=validdata, dataset=args.data, is_packed=False,
+        #            criterion=torch.nn.BCEWithLogitsLoss(), task="multilabel", no_robust=True, additional_loss=True)
 
         print('-' * 30 + 'Test data' + '-' * 30)
         model.reset_weight()
         tmp = test(model=model, test_dataloaders_all=testdata, dataset=args.data, is_packed=False,
                    criterion=torch.nn.BCEWithLogitsLoss(), task="multilabel", no_robust=True, additional_loss=True)
-        
         log1[n] = model.weight_stat()
         log2[n] = tmp['f1_micro'], tmp['f1_macro'], model.cal_flop()
 
